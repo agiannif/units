@@ -1,0 +1,193 @@
+:showtitle:
+:toc: left
+:icons: font
+
+= Units
+
+A command-line tool for managing systemd units.
+
+== Overview
+
+Units is a Rust-based CLI application that simplifies the management of systemd services. It allows you to install, uninstall, monitor, and manage systemd unit files.
+
+== Features
+
+* *Install / Uninstall Services*: Deploy or remove systemd unit files with automatic daemon reloading
+* *Status Monitoring*: Check the status of individual services or all managed services
+* *Log Viewing*: Stream logs for specific services in real-time
+
+== Requirements
+
+* Linux system with systemd
+* Root privileges (required for systemd operations)
+
+== Usage
+
+=== Basic Commands
+
+==== Check Status
+[source,bash]
+----
+# Check status of all managed apps
+sudo units status
+
+# Check status of a specific app
+sudo units status myapp
+----
+
+==== Install Services
+[source,bash]
+----
+# Install all apps found in the current directory
+sudo units install
+
+# Install a specific app
+sudo units install myapp
+----
+
+==== Uninstall Services
+[source,bash]
+----
+# Uninstall all apps (with confirmation)
+sudo units uninstall
+
+# Uninstall a specific app
+sudo units uninstall myapp
+----
+
+==== View Logs
+[source,bash]
+----
+# Stream logs for a service
+sudo units logs myapp
+----
+
+=== Global Options
+
+[cols="1,3"]
+|===
+|Option |Description
+
+|`--force`
+|Skip confirmations and overwrite existing files
+
+|`--dry-run`
+|Show what would be done without executing
+
+|`--help`
+|Show help information
+
+|`--version`
+|Show version information
+|===
+
+== Configuration
+
+Each app must have a `config.toml` file in its directory:
+
+[source,toml]
+----
+[systemd]
+install_location = "/etc/systemd/system"
+----
+
+=== Directory Structure
+
+Your project should be organized as follows:
+
+----
+/path/to/units/
+├── myapp/
+│   ├── config.toml
+│   ├── myapp.service
+│   └── myapp.timer (optional)
+├── anotherapp/
+│   ├── config.toml
+│   └── anotherapp.service
+└── ...
+----
+
+== App Status Types
+
+[cols="1,3"]
+|===
+|Status |Description
+
+|*Not Installed*
+|Service files are not present in systemd directory
+
+|*Installed*
+|Service files are present but service is not enabled
+
+|*Stopped*
+|Service is enabled but not currently running
+
+|*Running*
+|Service is enabled and actively running
+|===
+
+== Examples
+
+=== Installing a Web Service
+
+1. Create your app directory:
++
+[source,bash]
+----
+mkdir mywebapp
+cd mywebapp
+----
+
+2. Create `config.toml`:
++
+[source,toml]
+----
+[systemd]
+install_location = "/etc/systemd/system"
+----
+
+3. Create `mywebapp.service`:
++
+[source,systemd]
+----
+[Unit]
+Description=My Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/mywebapp
+ExecStart=/opt/mywebapp/start.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+----
+
+4. Install the service:
++
+[source,bash]
+----
+sudo units install mywebapp
+----
+
+=== Managing Multiple Services
+
+[source,bash]
+----
+# Check status of all services
+sudo units status
+
+# Install all services in current directory
+sudo units install
+
+# Preview what would be uninstalled
+sudo units uninstall --dry-run
+----
+
+== ToDo
+
+* Add github action to build binary on push
+* Improve error handling and logging
+* Support --user systemctl install
