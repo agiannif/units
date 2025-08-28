@@ -10,7 +10,7 @@ const CONFIG_FILE_NAME: &str = "config.toml";
 
 pub struct App {
     pub name: String,
-    repo_dir: path::PathBuf,
+    app_dir: path::PathBuf,
     systemd_dir: path::PathBuf,
     use_user: bool,
 }
@@ -27,10 +27,11 @@ impl App {
             .parent()
             .ok_or_else(|| anyhow!("Failed to find current directory"))?
             .to_path_buf();
+        let app_dir = repo_dir.join(name);
 
         Ok(App {
             name: String::from(name),
-            repo_dir,
+            app_dir,
             systemd_dir: path::PathBuf::from(config.systemd.install_location),
             use_user: config.systemd.use_user,
         })
@@ -41,8 +42,14 @@ impl App {
             return Ok(AppStatus::NotInstalled);
         }
 
+        let service_name = format!("{}.service", self.name);
+        let args = self.prepare_systemctl_args(vec![
+            String::from("is-active"),
+            String::from("--quiet"),
+            service_name.clone(),
+        ]);
         let is_active = process::Command::new("systemctl")
-            .args(["is-active", "--quiet", &format!("{}.service", self.name)])
+            .args(args)
             .status()
             .map(|s| s.success())
             .unwrap_or(false);
@@ -51,8 +58,13 @@ impl App {
             return Ok(AppStatus::Running);
         }
 
+        let args = self.prepare_systemctl_args(vec![
+            String::from("is-enabled"),
+            String::from("--quiet"),
+            service_name,
+        ]);
         let is_enabled = process::Command::new("systemctl")
-            .args(["is-enabled", "--quiet", &format!("{}.service", self.name)])
+            .args(args)
             .status()
             .map(|s| s.success())
             .unwrap_or(false);
@@ -73,8 +85,8 @@ impl App {
         if dry_run {
             logging::info(&format!("[DRY RUN] Would install app {}", self.name));
             for file in &app_files {
-                let relative_path = file.strip_prefix(&self.repo_dir)?;
-                let target_path = self.systemd_dir.join(relative_path);
+                let unit_name = file.strip_prefix(&self.app_dir)?;
+                let target_path = self.systemd_dir.join(unit_name);
                 logging::info(&format!(
                     "[DRY RUN] Would copy {} to {}",
                     file.to_str().unwrap(),
@@ -97,8 +109,8 @@ impl App {
 
         // check to see if there's any collisions
         for file in &app_files {
-            let relative_path = file.strip_prefix(&self.repo_dir)?;
-            let target_path = self.systemd_dir.join(relative_path);
+            let unit_name = file.strip_prefix(&self.app_dir)?;
+            let target_path = self.systemd_dir.join(unit_name);
 
             if target_path.exists() && !force {
                 logging::warn(&format!(
@@ -111,8 +123,8 @@ impl App {
 
         // copy files
         for file in &app_files {
-            let relative_path = file.strip_prefix(&self.repo_dir)?;
-            let target_path = self.systemd_dir.join(relative_path);
+            let unit_name = file.strip_prefix(&self.app_dir)?;
+            let target_path = self.systemd_dir.join(unit_name);
             let filename = target_path
                 .file_name()
                 .unwrap()
@@ -207,17 +219,15 @@ impl App {
     }
 
     fn files_installed(&self) -> Result<bool> {
-        for entry in WalkDir::new(&self.repo_dir).into_iter() {
+        for entry in WalkDir::new(&self.app_dir).into_iter() {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() || path.file_name() == Some(ffi::OsStr::new(CONFIG_FILE_NAME)) {
                 continue;
             }
 
-            let relative_path = path.strip_prefix(&self.repo_dir)?;
-
-            let target_path = self.systemd_dir.join(relative_path);
-
+            let unit_name = path.strip_prefix(&self.app_dir)?;
+            let target_path = self.systemd_dir.join(unit_name);
             if !target_path.exists() {
                 return Ok(false);
             }
@@ -229,7 +239,7 @@ impl App {
     fn get_app_files(&self) -> Result<Vec<path::PathBuf>> {
         let mut files = Vec::new();
 
-        for entry in WalkDir::new(&self.repo_dir).into_iter() {
+        for entry in WalkDir::new(&self.app_dir).into_iter() {
             let entry = entry?;
             let path = entry.path();
 
