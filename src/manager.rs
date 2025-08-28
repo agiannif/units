@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow, bail};
-use std::{env, fs, path, process};
+use anyhow::{Result, anyhow};
+use std::{env, fs, path};
 
 use crate::app::App;
 use crate::logging;
@@ -12,8 +12,6 @@ pub struct Manager {
 
 impl Manager {
     pub fn new(force: bool, dry_run: bool) -> Result<Self> {
-        check_root()?;
-
         let exe_path = env::current_exe()?;
         let repo_dir = exe_path
             .parent()
@@ -120,14 +118,4 @@ impl Manager {
 
         Ok(apps)
     }
-}
-
-fn check_root() -> Result<()> {
-    let output = process::Command::new("id").arg("-u").output()?;
-    let uid = String::from_utf8(output.stdout)?.trim().parse::<u32>()?;
-
-    if uid != 0 {
-        bail!("This script must be run as root (for systemd operations)");
-    }
-    Ok(())
 }

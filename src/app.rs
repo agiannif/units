@@ -4,7 +4,7 @@ use std::{env, ffi, fmt, fs, path, process};
 use toml;
 use walkdir::WalkDir;
 
-use crate::logging;
+use crate::{logging, systemd};
 
 const CONFIG_FILE_NAME: &str = "config.toml";
 
@@ -43,32 +43,12 @@ impl App {
         }
 
         let service_name = format!("{}.service", self.name);
-        let args = self.prepare_systemctl_args(vec![
-            String::from("is-active"),
-            String::from("--quiet"),
-            service_name.clone(),
-        ]);
-        let is_active = process::Command::new("systemctl")
-            .args(args)
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-
+        let is_active = systemd::is_active(&service_name, !self.use_user)?;
         if is_active {
             return Ok(AppStatus::Running);
         }
 
-        let args = self.prepare_systemctl_args(vec![
-            String::from("is-enabled"),
-            String::from("--quiet"),
-            service_name,
-        ]);
-        let is_enabled = process::Command::new("systemctl")
-            .args(args)
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-
+        let is_enabled = systemd::is_active(&service_name, !self.use_user)?;
         if is_enabled {
             Ok(AppStatus::Stopped)
         } else {
