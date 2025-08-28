@@ -2,12 +2,12 @@ name: build units cli
 on: [push]
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
       with:
-        targets: x86_64-unknown-linux-gnu
+        targets: aarch64-unknown-linux-gnu
     - uses: actions/cache@v4
       with:
         path: |
@@ -19,9 +19,9 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
-    - run: cargo build --release --target x86_64-unknown-linux-gnu
+    - run: cargo build --release --target aarch64-unknown-linux-gnu
     - uses: actions/upload-artifact@v4
       with:
-        name: units-linux-x86_64
-        path: target/x86_64-unknown-linux-gnu/release/*
+        name: units-linux-aarch64
+        path: target/aarch64-unknown-linux-gnu/release/units
         retention-days: 10
