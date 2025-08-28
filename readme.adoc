@@ -188,6 +188,5 @@ sudo units uninstall --dry-run
 
 == ToDo
 
-* Add github action to build binary on push
 * Improve error handling and logging
-* Support --user systemctl install
+* Add support for enable or start, currently start is just used as only .container unit files are supported

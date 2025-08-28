@@ -12,6 +12,7 @@ pub struct App {
     pub name: String,
     repo_dir: path::PathBuf,
     systemd_dir: path::PathBuf,
+    use_user: bool,
 }
 
 impl App {
@@ -31,6 +32,7 @@ impl App {
             name: String::from(name),
             repo_dir,
             systemd_dir: path::PathBuf::from(config.systemd.install_location),
+            use_user: config.systemd.use_user,
         })
     }
 
@@ -79,10 +81,17 @@ impl App {
                     target_path.to_str().unwrap()
                 ));
             }
-            logging::info(&format!(
-                "[DRY RUN] Would reload systemd and start {}.service",
-                self.name
-            ));
+            if self.use_user {
+                logging::info(&format!(
+                    "[DRY RUN] Would reload systemd and start {}.servie as user",
+                    self.name
+                ));
+            } else {
+                logging::info(&format!(
+                    "[DRY RUN] Would reload systemd and start {}.service",
+                    self.name
+                ));
+            }
             return Ok(());
         }
 
@@ -119,14 +128,13 @@ impl App {
             logging::info(&format!("Copied {filename}"))
         }
 
-        // reload systemd, enable and start the main service
-        process::Command::new("systemctl")
-            .args(["daemon-reload"])
-            .status()?;
+        // reload systemd, start the main service
+        let args = self.prepare_systemctl_args(vec![String::from("daemon-relaod")]);
+        process::Command::new("systemctl").args(args).status()?;
 
-        process::Command::new("systemctl")
-            .args(["enable", "--now", &format!("{}.service", self.name)])
-            .status()?;
+        let service_name = format!("{}.service", self.name);
+        let args = self.prepare_systemctl_args(vec![String::from("start"), service_name]);
+        process::Command::new("systemctl").args(args).status()?;
 
         Ok(())
     }
@@ -167,14 +175,9 @@ impl App {
         }
 
         // stop service if running
-        let _ = process::Command::new("systemctl")
-            .args(["stop", &format!("{}.service", self.name)])
-            .status();
-
-        // disable service if enabled
-        let _ = process::Command::new("systemctl")
-            .args(["disable", &format!("{}.service", self.name)])
-            .status();
+        let service_name = format!("{}.service", self.name);
+        let args = self.prepare_systemctl_args(vec![String::from("stop"), service_name]);
+        let _ = process::Command::new("systemctl").args(args).status();
 
         for file in app_files {
             let _ = fs::remove_file(&file);
@@ -182,8 +185,9 @@ impl App {
         }
 
         // reload systemd
+        let args = self.prepare_systemctl_args(vec![String::from("daemon-reload")]);
         process::Command::new("systemctl")
-            .args(["daemon-reload"])
+            .args(args)
             .status()
             .context("Failed to reload systemd after stopping service and removing files")?;
 
@@ -238,6 +242,13 @@ impl App {
 
         Ok(files)
     }
+
+    fn prepare_systemctl_args(&self, mut args: Vec<String>) -> Vec<String> {
+        if self.use_user {
+            args.insert(0, "--user".to_string());
+        }
+        args
+    }
 }
 
 pub enum AppStatus {
@@ -266,4 +277,5 @@ struct AppConfig {
 #[derive(Deserialize)]
 struct Systemd {
     install_location: String,
+    use_user: bool,
 }
